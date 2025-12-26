@@ -1,3 +1,22 @@
+def test_crear_tarea_faltan_campos():
+    """
+    Test para validar que si falta un campo requerido al crear una tarea,
+    la respuesta incluye un msg con los campos faltantes.
+    """
+    tarea_incompleta = {
+        "title": "tarea_incompleta",
+        # Falta 'description', 'priority', 'effort_hours', 'status', 'assigned_to'
+    }
+    response = client.post("/tasks", json=tarea_incompleta)
+    assert response.status_code == 422
+    data = response.json()
+    assert "msg" in data
+    # Debe mencionar los campos faltantes
+    assert "description" in data["msg"]
+    assert "priority" in data["msg"]
+    assert "effort_hours" in data["msg"]
+    assert "status" in data["msg"]
+    assert "assigned_to" in data["msg"]
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -7,6 +26,11 @@ client = TestClient(app)
 
 
 def test_crear_tarea():
+    """
+    Test para la creación de una nueva tarea vía POST /tasks.
+
+    Valida que la respuesta sea 201, se le asigne id y que los campos coincidan.
+    """
     nueva_tarea = {
         "title": "tarea_de_prueba",
         "description": "descripcion_de_prueba",
@@ -22,13 +46,182 @@ def test_crear_tarea():
     assert data["title"] == nueva_tarea["title"]
 
 
+def test_crear_tarea_effort_hours_cero():
+    """
+    Validar que 'effort_hours' igual a 0 produce error 422 con detalle del campo.
+    """
+    nueva_tarea = {
+        "title": "tarea_invalida_cero",
+        "description": "desc",
+        "priority": "alta",
+        "effort_hours": 0,
+        "status": "pendiente",
+        "assigned_to": "usuario"
+    }
+    response = client.post("/tasks", json=nueva_tarea)
+    assert response.status_code == 422
+    data = response.json()
+    assert "detail" in data
+    # Verificamos que el error señale el campo effort_hours
+    assert any(
+        (isinstance(err.get("loc", []), list) and "effort_hours" in err.get("loc", []))
+        for err in data["detail"]
+    )
+
+
+def test_crear_tarea_effort_hours_no_numerico():
+    """
+    Validar que 'effort_hours' no numérico produce error 422.
+    """
+    nueva_tarea = {
+        "title": "tarea_invalida_no_numerico",
+        "description": "desc",
+        "priority": "media",
+        "effort_hours": "abc",
+        "status": "pendiente",
+        "assigned_to": "usuario"
+    }
+    response = client.post("/tasks", json=nueva_tarea)
+    assert response.status_code == 422
+    data = response.json()
+    assert "detail" in data
+    assert any(
+        (isinstance(err.get("loc", []), list) and "effort_hours" in err.get("loc", []))
+        for err in data["detail"]
+    )
+
+
+def test_crear_tarea_effort_hours_token_invalido_json():
+    """
+    Enviar JSON inválido con token no citado para effort_hours
+    y validar que el msg indique que debe ser numérico.
+    """
+    invalid_json = '{"title":"x","description":"y","priority":"alta","effort_hours": ew, "status":"pendiente","assigned_to":"z"}'
+    response = client.post("/tasks", data=invalid_json, headers={"Content-Type": "application/json"})
+    assert response.status_code == 422
+    data = response.json()
+    assert "msg" in data
+    assert "effort_hours debe ser numérico" in data["msg"]
+    # Confirma que es un error de JSON
+    assert any(err.get("type") == "json_invalid" for err in data.get("detail", []))
+
+
+def test_crear_tarea_priority_invalida_msg():
+    """
+    Validar mensaje claro cuando priority no pertenece a los permitidos.
+    """
+    nueva_tarea = {
+        "title": "tarea_invalida_priority",
+        "description": "desc",
+        "priority": "urgente",
+        "effort_hours": 1.0,
+        "status": "pendiente",
+        "assigned_to": "usuario"
+    }
+    response = client.post("/tasks", json=nueva_tarea)
+    assert response.status_code == 422
+    data = response.json()
+    assert "msg" in data
+    assert "priority debe ser uno de:" in data["msg"]
+    assert any(
+        (isinstance(err.get("loc", []), list) and "priority" in err.get("loc", []))
+        for err in data.get("detail", [])
+    )
+
+
+def test_crear_tarea_status_invalido_msg():
+    """
+    Validar mensaje claro cuando status no pertenece a los permitidos.
+    """
+    nueva_tarea = {
+        "title": "tarea_invalida_status",
+        "description": "desc",
+        "priority": "alta",
+        "effort_hours": 1.0,
+        "status": "finalizada",
+        "assigned_to": "usuario"
+    }
+    response = client.post("/tasks", json=nueva_tarea)
+    assert response.status_code == 422
+    data = response.json()
+    assert "msg" in data
+    assert "status debe ser uno de:" in data["msg"]
+    assert any(
+        (isinstance(err.get("loc", []), list) and "status" in err.get("loc", []))
+        for err in data.get("detail", [])
+    )
+
+
+def test_crear_tarea_priority_token_invalido_json_string():
+    """
+    Enviar JSON inválido con valor de priority sin comillas dobles
+    y validar mensaje de formato del campo.
+    """
+    invalid_json = '{"title":"x","description":"y","priority": urgente, "effort_hours": 1.0, "status":"pendiente","assigned_to":"z"}'
+    response = client.post("/tasks", data=invalid_json, headers={"Content-Type": "application/json"})
+    assert response.status_code == 422
+    data = response.json()
+    assert "msg" in data
+    assert "priority tiene formato inválido: debe ser texto entre comillas dobles" in data["msg"]
+    assert any(err.get("type") == "json_invalid" for err in data.get("detail", []))
+
+
+def test_crear_tarea_title_token_invalido_json_string():
+    """
+    Enviar JSON inválido con valor de title sin comillas dobles
+    y validar mensaje de formato del campo.
+    """
+    invalid_json = '{"title": x, "description":"y","priority":"alta", "effort_hours": 1.0, "status":"pendiente","assigned_to":"z"}'
+    response = client.post("/tasks", data=invalid_json, headers={"Content-Type": "application/json"})
+    assert response.status_code == 422
+    data = response.json()
+    assert "msg" in data
+    assert "title tiene formato inválido: debe ser texto entre comillas dobles" in data["msg"]
+    assert any(err.get("type") == "json_invalid" for err in data.get("detail", []))
+
+
+def test_crear_tarea_status_token_invalido_json_string():
+    """
+    Enviar JSON inválido con valor de status sin comillas dobles
+    y validar mensaje de formato del campo.
+    """
+    invalid_json = '{"title":"x","description":"y","priority":"alta", "effort_hours": 1.0, "status": pendiente, "assigned_to":"z"}'
+    response = client.post("/tasks", data=invalid_json, headers={"Content-Type": "application/json"})
+    assert response.status_code == 422
+    data = response.json()
+    assert "msg" in data
+    assert "status tiene formato inválido: debe ser texto entre comillas dobles" in data["msg"]
+    assert any(err.get("type") == "json_invalid" for err in data.get("detail", []))
+
+
+def test_priority_unquoted_but_effort_hours_numeric_no_wrong_msg():
+    """
+    JSON inválido por priority sin comillas, pero effort_hours es numérico válido.
+    No debe agregarse el mensaje erróneo "effort_hours debe ser numérico" en msg.
+    """
+    invalid_json = '{"title":"x","description":"y","priority": alta, "effort_hours": 4.5, "status":"pendiente","assigned_to":"z"}'
+    response = client.post("/tasks", data=invalid_json, headers={"Content-Type": "application/json"})
+    assert response.status_code == 422
+    data = response.json()
+    assert "msg" in data
+    assert "priority tiene formato inválido" in data["msg"]
+    assert "effort_hours debe ser numérico" not in data["msg"]
+    assert any(err.get("type") == "json_invalid" for err in data.get("detail", []))
+
+
 def test_leer_todas_las_tareas():
+    """
+    Test para obtener todas las tareas mediante GET /tasks.
+    """
     response = client.get("/tasks")
     assert response.status_code == 200
     assert isinstance(response.json(), list)
 
 
 def test_leer_una_tarea():
+    """
+    Test para obtener una tarea por id con GET /tasks/{id}.
+    """
     nueva_tarea = {
         "title": "tarea_para_leer",
         "description": "descripcion",
@@ -47,6 +240,9 @@ def test_leer_una_tarea():
 
 
 def test_actualizar_tarea():
+    """
+    Test para actualizar una tarea existente vía PUT /tasks/{id}.
+    """
     nueva_tarea = {
         "title": "tarea_para_actualizar",
         "description": "descripcion",
@@ -74,6 +270,9 @@ def test_actualizar_tarea():
 
 
 def test_eliminar_tarea():
+    """
+    Test para eliminar una tarea vía DELETE /tasks/{id} y validar inexistencia posterior.
+    """
     nueva_tarea = {
         "title": "tarea_para_eliminar",
         "description": "descripcion",

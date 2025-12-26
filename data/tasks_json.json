@@ -1,32 +1,4 @@
-{
-  "Tasks": [
-    {
-      "id": 1,
-      "title": "tarea_de_prueba",
-      "description": "descripcion_de_prueba",
-      "priority": "alta",
-      "effort_hours": 2.5,
-      "status": "pendiente",
-      "assigned_to": "usuario_prueba"
-    },
-    {
-      "id": 2,
-      "title": "tarea_para_leer",
-      "description": "descripcion",
-      "priority": "media",
-      "effort_hours": 1.0,
-      "status": "pendiente",
-      "assigned_to": "usuario_leer"
-    },
-    {
-      "id": 3,
-      "title": "tarea_actualizada",
-      "description": "descripcion_actualizada",
-      "priority": "alta",
-      "effort_hours": 5.0,
-      "status": "en_progreso",
-      "assigned_to": "usuario_actualizado"
-    }
-  ],
-  "last_id": 4
+﻿{
+  "Tasks": [],
+  "last_id": 0
 }

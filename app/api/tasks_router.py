@@ -1,9 +1,13 @@
 from typing import List
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Request
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
 
 from app.models.task_model import task
 from app.services.task_manager import task_manager
+
+
 
 
 router = APIRouter()
@@ -14,8 +18,33 @@ router = APIRouter()
     response_model=task,
     status_code=status.HTTP_201_CREATED,
     summary="crear_una_tarea",
+    responses={
+        201: {
+            "description": "tarea_creada",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "id": 1,
+                        "title": "tarea_de_ejemplo",
+                        "description": "descripcion_de_la_tarea",
+                        "priority": "alta",
+                        "effort_hours": 4.5,
+                        "status": "pendiente",
+                        "assigned_to": "juan_perez"
+                    }
+                }
+            }
+        }
+    }
 )
 def crear_tarea(task_input: task) -> task:
+    """
+    Endpoint para crear una nueva tarea.
+    Args:
+        task_input (task): Datos de la nueva tarea (sin id).
+    Returns:
+        task: La tarea creada (con id asignado).
+    """
     return task_manager.create_task(task_input)
 
 
@@ -25,6 +54,9 @@ def crear_tarea(task_input: task) -> task:
     summary="leer_todas_las_tareas",
 )
 def leer_todas_las_tareas() -> List[task]:
+    """
+    Devuelve la lista completa de tareas almacenadas.
+    """
     return task_manager.get_all_tasks()
 
 
@@ -34,6 +66,15 @@ def leer_todas_las_tareas() -> List[task]:
     summary="leer_una_tarea",
 )
 def leer_tarea(task_id: int) -> task:
+    """
+    Busca y devuelve una tarea por id.
+    Args:
+        task_id (int): ID de la tarea a buscar.
+    Returns:
+        task: Si existe, la tarea encontrada.
+    Raises:
+        HTTPException(404): Si la tarea no existe.
+    """
     existing_task = task_manager.get_task_by_id(task_id)
     if existing_task is None:
         raise HTTPException(
@@ -49,6 +90,16 @@ def leer_tarea(task_id: int) -> task:
     summary="actualizar_una_tarea",
 )
 def actualizar_tarea(task_id: int, task_input: task) -> task:
+    """
+    Actualiza una tarea existente por su id.
+    Args:
+        task_id (int): ID de la tarea a actualizar.
+        task_input (task): Nuevos datos de la tarea.
+    Returns:
+        task: Tarea actualizada.
+    Raises:
+        HTTPException(404): Si la tarea no existe.
+    """
     updated = task_manager.update_task(task_id, task_input)
     if updated is None:
         raise HTTPException(
@@ -64,12 +115,20 @@ def actualizar_tarea(task_id: int, task_input: task) -> task:
     summary="eliminar_una_tarea",
 )
 def eliminar_tarea(task_id: int) -> None:
+    """
+    Elimina una tarea existente.
+    Args:
+        task_id (int): ID de la tarea a eliminar.
+    Raises:
+        HTTPException(404): Si la tarea no existe.
+    """
     deleted = task_manager.delete_task(task_id)
     if not deleted:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="tarea_no_encontrada",
         )
+
 
 
 
