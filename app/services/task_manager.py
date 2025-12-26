@@ -53,9 +53,17 @@ class task_manager:
             List[task]: Lista de tareas.
         """
         task_manager._ensure_data_file_exists()
-        with task_manager.data_file.open("r", encoding="utf-8") as file:
-            data = json.load(file)
+        try:
+            with task_manager.data_file.open("r", encoding="utf-8") as file:
+                data = json.load(file)
+        except json.JSONDecodeError:
+            # Recuperar de JSON corrupto: restablecer estructura vacía para evitar 500
+            data = {task_manager.tasks_key: [], task_manager.last_id_key: 0}
+            with task_manager.data_file.open("w", encoding="utf-8") as file:
+                json.dump(data, file, ensure_ascii=False, indent=2)
         tasks_data = data.get(task_manager.tasks_key, [])
+        if not isinstance(tasks_data, list):
+            tasks_data = []
         valid_tasks: List[task] = []
         for t in tasks_data:
             try:
@@ -73,8 +81,15 @@ class task_manager:
             tasks (List[task]): Lista de tareas a guardar.
         """
         task_manager._ensure_data_file_exists()
-        with task_manager.data_file.open("r", encoding="utf-8") as file:
-            data = json.load(file)
+        # Cargar de forma segura; si el JSON está corrupto, reconstruir estructura base
+        try:
+            with task_manager.data_file.open("r", encoding="utf-8") as file:
+                data = json.load(file)
+        except json.JSONDecodeError:
+            data = {task_manager.tasks_key: [], task_manager.last_id_key: 0}
+        # Asegurar clave de tareas como lista
+        if not isinstance(data.get(task_manager.tasks_key), list):
+            data[task_manager.tasks_key] = []
         data[task_manager.tasks_key] = [t.to_dict() for t in tasks]
         with task_manager.data_file.open("w", encoding="utf-8") as file:
             json.dump(data, file, ensure_ascii=False, indent=2)
@@ -87,11 +102,25 @@ class task_manager:
             int: Nuevo ID único.
         """
         task_manager._ensure_data_file_exists()
-        with task_manager.data_file.open("r", encoding="utf-8") as file:
-            data = json.load(file)
-        last_id = int(data.get(task_manager.last_id_key, 0))
+        # Leer de forma segura; si corrupto, reiniciar estructura
+        try:
+            with task_manager.data_file.open("r", encoding="utf-8") as file:
+                data = json.load(file)
+        except json.JSONDecodeError:
+            data = {task_manager.tasks_key: [], task_manager.last_id_key: 0}
+        # Normalizar last_id
+        try:
+            last_id_raw = data.get(task_manager.last_id_key, 0)
+            last_id = int(last_id_raw) if isinstance(last_id_raw, (int, float, str)) else 0
+            if last_id < 0:
+                last_id = 0
+        except Exception:
+            last_id = 0
         next_id = last_id + 1
         data[task_manager.last_id_key] = next_id
+        # Garantizar que la clave de tareas exista como lista para no perder datos
+        if not isinstance(data.get(task_manager.tasks_key), list):
+            data[task_manager.tasks_key] = []
         with task_manager.data_file.open("w", encoding="utf-8") as file:
             json.dump(data, file, ensure_ascii=False, indent=2)
         return next_id
